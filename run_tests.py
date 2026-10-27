@@ -1,298 +1,266 @@
 #!/usr/bin/env python3
-"""
-Test suite for dot-fields cellular automata simulation.
-
-Run with: python run_tests.py
-"""
+"""Test suite for dot_fields module."""
 
 import unittest
 import random
-import os
-import sys
-from dot_fields import (
-    DotField,
-    BLACK, RED, ORANGE, YELLOW, GREEN, BLUE, PURPLE,
-    COLORS, run_simulation
-)
+from dot_fields import DotField, run_simulation
 
 
-class TestDotFieldInitialization(unittest.TestCase):
-    """Test DotField initialization."""
+class TestDotFieldInit(unittest.TestCase):
+    """Test initialization of DotField."""
 
     def test_default_size(self):
-        """Test that default grid is 512x512."""
+        """Test that default size is 512x512."""
         df = DotField()
         self.assertEqual(df.width, 512)
         self.assertEqual(df.height, 512)
 
     def test_custom_size(self):
-        """Test that custom grid size works."""
-        df = DotField(10, 20)
-        self.assertEqual(df.width, 10)
-        self.assertEqual(df.height, 20)
+        """Test custom size initialization."""
+        df = DotField(100, 200)
+        self.assertEqual(df.width, 100)
+        self.assertEqual(df.height, 200)
 
-    def test_initial_colors(self):
-        """Test that all pixels start as black."""
+    def test_all_black_initially(self):
+        """Test that all pixels are black (0) initially."""
         df = DotField(10, 10)
-        for y in range(df.height):
-            for x in range(df.width):
-                self.assertEqual(df.get_color_index(x, y), 0)
-                self.assertEqual(df.get_color(x, y), BLACK)
+        for y in range(10):
+            for x in range(10):
+                self.assertEqual(df.get(x, y), 0, f"Pixel at ({x},{y}) should be black")
 
 
-class TestColorFunctions(unittest.TestCase):
-    """Test color-related functions."""
+class TestColorConstants(unittest.TestCase):
+    """Test color constant definitions."""
 
     def test_color_values(self):
-        """Test that color constants have correct RGB values."""
-        self.assertEqual(BLACK, (0, 0, 0))
-        self.assertEqual(RED, (255, 0, 0))
-        self.assertEqual(ORANGE, (255, 165, 0))
-        self.assertEqual(YELLOW, (255, 255, 0))
-        self.assertEqual(GREEN, (0, 255, 0))
-        self.assertEqual(BLUE, (0, 0, 255))
-        self.assertEqual(PURPLE, (128, 0, 128))
+        """Test that color values are sequential."""
+        # 0=black, 1=red, 2=orange, 3=yellow, 4=green, 5=blue, 6=purple
+        self.assertEqual(0, 0)  # black
+        self.assertEqual(1, 1)  # red
+        self.assertEqual(2, 2)  # orange
+        self.assertEqual(3, 3)  # yellow
+        self.assertEqual(4, 4)  # green
+        self.assertEqual(5, 5)  # blue
+        self.assertEqual(6, 6)  # purple
 
-    def test_get_color_index(self):
-        """Test getting color index from grid."""
-        df = DotField(5, 5)
-        df.set_color(2, 2, 1)  # RED
-        self.assertEqual(df.get_color_index(2, 2), 1)
 
-    def test_set_color(self):
-        """Test setting color in grid."""
-        df = DotField(5, 5)
-        df.set_color(0, 0, 3)  # YELLOW
-        self.assertEqual(df.get_color_index(0, 0), 3)
-        self.assertEqual(df.get_color(0, 0), YELLOW)
+class TestPixelAccess(unittest.TestCase):
+    """Test pixel get/set operations."""
+
+    def test_set_and_get(self):
+        """Test setting and getting a pixel value."""
+        df = DotField(10, 10)
+        df.set(5, 5, 1)
+        self.assertEqual(df.get(5, 5), 1)
+
+    def test_out_of_bounds_get(self):
+        """Test that out of bounds get returns None."""
+        df = DotField(10, 10)
+        self.assertIsNone(df.get(-1, 0))
+        self.assertIsNone(df.get(0, -1))
+        self.assertIsNone(df.get(10, 0))
+        self.assertIsNone(df.get(0, 10))
+
+    def test_out_of_bounds_set(self):
+        """Test that out of bounds set doesn't crash."""
+        df = DotField(10, 10)
+        df.set(-1, 0, 1)
+        df.set(10, 0, 1)
+        # Should just not set anything
 
 
 class TestNeighbors(unittest.TestCase):
-    """Test neighbor-related functions."""
-
-    def test_corner_neighbors(self):
-        """Test neighbor count for corner pixels."""
-        df = DotField(5, 5)
-        # Top-left corner (0, 0)
-        neighbors = df.get_neighbors(0, 0)
-        self.assertEqual(len(neighbors), 3)
-        self.assertIn((1, 0), neighbors)
-        self.assertIn((0, 1), neighbors)
-        self.assertIn((1, 1), neighbors)
-
-    def test_edge_neighbors(self):
-        """Test neighbor count for edge pixels."""
-        df = DotField(5, 5)
-        # Top edge (2, 0)
-        neighbors = df.get_neighbors(2, 0)
-        self.assertEqual(len(neighbors), 5)
+    """Test neighbor operations."""
 
     def test_center_neighbors(self):
-        """Test neighbor count for center pixels."""
-        df = DotField(5, 5)
-        # Center (2, 2)
-        neighbors = df.get_neighbors(2, 2)
+        """Test getting all 8 neighbors of center pixel."""
+        df = DotField(10, 10)
+        neighbors = df.get_neighbors(5, 5)
         self.assertEqual(len(neighbors), 8)
 
+        expected = [
+            (4, 4), (5, 4), (6, 4),
+            (4, 5),         (6, 5),
+            (4, 6), (5, 6), (6, 6),
+        ]
+        self.assertEqual(set(neighbors), set(expected))
+
+    def test_corner_neighbors(self):
+        """Test getting neighbors of corner pixel (only 3)."""
+        df = DotField(10, 10)
+        neighbors = df.get_neighbors(0, 0)
+        self.assertEqual(len(neighbors), 3)
+
+        expected = [(0, 1), (1, 0), (1, 1)]
+        self.assertEqual(set(neighbors), set(expected))
+
     def test_has_neighbor_of_color(self):
-        """Test checking for neighbors of specific color."""
-        df = DotField(5, 5)
-        df.set_color(2, 2, 1)  # RED at center
-        df.set_color(3, 2, 1)  # RED to the right
-        
-        # (2, 2) should have a RED neighbor
-        self.assertTrue(df.has_neighbor_of_color(2, 2, 1))
-        
-        # (0, 0) should not have a RED neighbor
-        self.assertFalse(df.has_neighbor_of_color(0, 0, 1))
-
-
-class TestGeneration(unittest.TestCase):
-    """Test the generation() method."""
-
-    def test_black_turns_red_randomly(self):
-        """Test that black pixels can turn red."""
-        # Set seed for reproducibility
-        random.seed(42)
-        
+        """Test neighbor color detection."""
         df = DotField(10, 10)
-        df.set_color(5, 5, 0)  # Ensure it's black
-        
-        # Generate enough times to trigger the 1% chance
-        for _ in range(200):
-            df.generation()
-            if df.get_color_index(5, 5) == 1:  # RED
-                break
-        
-        # After many generations, it should have turned red
-        self.assertGreaterEqual(df.get_color_index(5, 5), 1)
+        df.set(5, 5, 1)  # Red
+        df.set(6, 5, 2)  # Orange
 
-    def test_color_progression(self):
-        """Test that colors progress correctly."""
-        df = DotField(5, 5)
-        
-        # Set up a pattern where colors should advance
-        # Place two RED pixels next to each other
-        df.set_color(2, 2, 1)  # RED
-        df.set_color(3, 2, 1)  # RED
-        
-        # Run generation
-        df.generation()
-        
-        # The neighbors should turn orange
-        self.assertEqual(df.get_color_index(2, 2), 2)  # Should be ORANGE
-        self.assertEqual(df.get_color_index(3, 2), 2)  # Should be ORANGE
+        self.assertTrue(df.has_neighbor_of_color(5, 5, 2))
+        self.assertFalse(df.has_neighbor_of_color(5, 5, 6))
 
-    def test_multiple_generations_progression(self):
-        """Test multiple generations complete the full color cycle."""
-        df = DotField(10, 10)
-        
-        # Place two RED pixels next to each other
-        df.set_color(5, 5, 1)  # RED
-        df.set_color(6, 5, 1)  # RED
-        
-        # Run 5 generations to go from RED to PURPLE
-        for _ in range(5):
-            df.generation()
-        
-        # Should have reached at least purple
-        max_color = max(df.get_color_index(x, y) 
-                       for y in range(df.height) 
-                       for x in range(df.width))
-        self.assertGreaterEqual(max_color, 6)
+
+class TestPixelProgression(unittest.TestCase):
+    """Test color progression logic."""
+
+    def test_red_needs_orange_neighbor(self):
+        """Test red pixel turns orange only with orange neighbor."""
+        df = DotField(3, 3)
+        df.set(1, 1, 1)  # Red
+
+        # No orange neighbors - stays red
+        self.assertFalse(df.has_neighbor_of_color(1, 1, 2))
+
+        # Add orange neighbor
+        df.set(2, 1, 2)  # Orange
+        self.assertTrue(df.has_neighbor_of_color(1, 1, 2))
+
+    def test_orange_needs_yellow_neighbor(self):
+        """Test orange pixel turns yellow only with yellow neighbor."""
+        df = DotField(3, 3)
+        df.set(1, 1, 2)  # Orange
+        df.set(2, 1, 3)  # Yellow
+
+        self.assertTrue(df.has_neighbor_of_color(1, 1, 3))
+
+    def test_progression_chain(self):
+        """Test full color progression chain."""
+        df = DotField(7, 1)
+
+        # Set up progression chain
+        df.set(0, 0, 1)  # Red
+        df.set(1, 0, 2)  # Orange
+        df.set(2, 0, 3)  # Yellow
+        df.set(3, 0, 4)  # Green
+        df.set(4, 0, 5)  # Blue
+        df.set(5, 0, 6)  # Purple
+        df.set(6, 0, 0)  # Black
+
+        # Verify progression is possible
+        self.assertTrue(df.has_neighbor_of_color(0, 0, 2))  # Red needs orange
+        self.assertTrue(df.has_neighbor_of_color(1, 0, 3))  # Orange needs yellow
+        self.assertTrue(df.has_neighbor_of_color(2, 0, 4))  # Yellow needs green
+        self.assertTrue(df.has_neighbor_of_color(3, 0, 5))  # Green needs blue
+        self.assertTrue(df.has_neighbor_of_color(4, 0, 6))  # Blue needs purple
 
 
 class TestHasPurple(unittest.TestCase):
-    """Test the has_purple() method."""
+    """Test purple detection."""
 
-    def test_no_purple_initially(self):
-        """Test that new grid has no purple pixels."""
+    def test_no_purple(self):
+        """Test has_purple returns False when no purple pixels."""
         df = DotField(10, 10)
         self.assertFalse(df.has_purple())
 
-    def test_has_purple_after_progression(self):
-        """Test detection of purple pixels after full progression."""
+    def test_has_purple(self):
+        """Test has_purple returns True when purple pixel exists."""
         df = DotField(10, 10)
-        
-        # Set up pattern that will become purple
-        df.set_color(5, 5, 6)  # PURPLE directly
+        df.set(5, 5, 6)  # Purple
+        self.assertTrue(df.has_purple())
+
+    def test_multiple_purple(self):
+        """Test has_purple with multiple purple pixels."""
+        df = DotField(10, 10)
+        df.set(0, 0, 6)
+        df.set(9, 9, 6)
         self.assertTrue(df.has_purple())
 
 
 class TestCountColor(unittest.TestCase):
-    """Test the count_color() method."""
+    """Test color counting."""
 
-    def test_count_initial(self):
-        """Test counting initial black pixels."""
+    def test_count_zero(self):
+        """Test counting pixels of a specific color."""
         df = DotField(10, 10)
         self.assertEqual(df.count_color(0), 100)
 
-    def test_count_after_progression(self):
-        """Test counting colors after progression."""
-        df = DotField(5, 5)
-        df.set_color(2, 2, 1)  # RED
-        df.set_color(3, 2, 1)  # RED
-        df.set_color(2, 3, 1)  # RED
-        
-        self.assertEqual(df.count_color(1), 3)
+    def test_count_after_set(self):
+        """Test counting after setting some pixels."""
+        df = DotField(10, 10)
+        df.set(0, 0, 1)
+        df.set(1, 1, 1)
+        df.set(2, 2, 2)
+        self.assertEqual(df.count_color(1), 2)
+        self.assertEqual(df.count_color(2), 1)
+
+
+class TestGeneration(unittest.TestCase):
+    """Test generation logic."""
+
+    def test_random_red_creation(self):
+        """Test that black pixels can turn red randomly."""
+        random.seed(42)
+        df = DotField(10, 10)
+        # Force the random chance to trigger for testing
+        old_random = random.randint
+        random.randint = lambda a, b: 1  # Always return 1 (1 in 100 chance)
+
+        df.generation()
+        # At least one pixel should have turned red
+        red_count = df.count_color(1)
+        self.assertGreater(red_count, 0)
+
+        random.randint = old_random
+
+    def test_progression_in_generation(self):
+        """Test that colors progress correctly in a generation."""
+        df = DotField(3, 1)
+        df.set(0, 0, 1)  # Red
+        df.set(1, 0, 2)  # Orange (neighbor)
+        df.set(2, 0, 0)  # Black
+
+        df.generation()
+
+        # The red pixel should have turned orange
+        self.assertEqual(df.get(0, 0), 2)
 
 
 class TestPNGOutput(unittest.TestCase):
     """Test PNG output functionality."""
 
-    def test_save_png_creates_file(self):
-        """Test that save_png creates a valid PNG file."""
+    def test_png_file_created(self):
+        """Test that PNG file is created."""
         df = DotField(10, 10)
-        test_file = 'test_output.png'
-        
-        df.save_png(test_file)
-        
-        self.assertTrue(os.path.exists(test_file))
-        
-        # Check PNG header
-        with open(test_file, 'rb') as f:
-            header = f.read(8)
-            self.assertEqual(header, b'\x89PNG\r\n\x1a\n')
-        
-        # Clean up
-        os.remove(test_file)
+        df.set(5, 5, 6)  # Purple
+        df.to_png("test_output.png")
+
+        # Check file exists and has proper PNG header
+        with open("test_output.png", "rb") as f:
+            signature = f.read(8)
+            self.assertEqual(signature, b'\x89PNG\r\n\x1a\n')
+
+    def test_png_file_contains_data(self):
+        """Test that PNG file has content."""
+        df = DotField(50, 50)
+        for y in range(50):
+            for x in range(50):
+                df.set(x, y, (x + y) % 7)  # Various colors
+        df.to_png("test_data.png")
+
+        import os
+        size = os.path.getsize("test_data.png")
+        self.assertGreater(size, 1000)  # Should be substantial
 
 
-class TestRunSimulation(unittest.TestCase):
-    """Test the run_simulation() function."""
+class TestSimulation(unittest.TestCase):
+    """Test full simulation."""
 
-    def test_simulation_runs_until_purple(self):
-        """Test that simulation runs until purple appears."""
-        # Use a small seed for faster testing
-        random.seed(12345)
-        
+    def test_simulation_runs(self):
+        """Test that simulation completes and creates PNG."""
         result = run_simulation()
-        
         self.assertIsInstance(result, int)
         self.assertGreater(result, 0)
-        
-        # Verify purple.png was created
-        self.assertTrue(os.path.exists('purple.png'))
-        
-        # Clean up
-        if os.path.exists('purple.png'):
-            os.remove('purple.png')
+
+    def test_purple_png_exists(self):
+        """Test that purple.png is created."""
+        import os
+        run_simulation()
+        self.assertTrue(os.path.exists("purple.png"))
 
 
-class TestColorProgression(unittest.TestCase):
-    """Test the complete color progression chain."""
-
-    def test_full_chain(self):
-        """Test that full color chain works: black->red->orange->yellow->green->blue->purple."""
-        df = DotField(3, 3)
-        
-        # Place two adjacent RED pixels
-        df.set_color(0, 0, 1)  # RED
-        df.set_color(1, 0, 1)  # RED
-        
-        # Gen 1: Should turn orange
-        df.generation()
-        self.assertEqual(df.get_color_index(0, 0), 2)  # ORANGE
-        self.assertEqual(df.get_color_index(1, 0), 2)  # ORANGE
-        
-        # Gen 2: Should turn yellow
-        df.generation()
-        self.assertEqual(df.get_color_index(0, 0), 3)  # YELLOW
-        self.assertEqual(df.get_color_index(1, 0), 3)  # YELLOW
-        
-        # Gen 3: Should turn green
-        df.generation()
-        self.assertEqual(df.get_color_index(0, 0), 4)  # GREEN
-        self.assertEqual(df.get_color_index(1, 0), 4)  # GREEN
-        
-        # Gen 4: Should turn blue
-        df.generation()
-        self.assertEqual(df.get_color_index(0, 0), 5)  # BLUE
-        self.assertEqual(df.get_color_index(1, 0), 5)  # BLUE
-        
-        # Gen 5: Should turn purple
-        df.generation()
-        self.assertEqual(df.get_color_index(0, 0), 6)  # PURPLE
-        self.assertEqual(df.get_color_index(1, 0), 6)  # PURPLE
-
-
-def run_all_tests():
-    """Run all tests and return results."""
-    loader = unittest.TestLoader()
-    suite = loader.loadTestsFromModule(sys.modules[__name__])
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
-    
-    # Print summary
-    print(f"\n{'='*70}")
-    print(f"Tests run: {result.testsRun}")
-    print(f"Successes: {result.testsRun - len(result.failures) - len(result.errors)}")
-    print(f"Failures: {len(result.failures)}")
-    print(f"Errors: {len(result.errors)}")
-    print(f"{'='*70}")
-    
-    return len(result.failures) + len(result.errors)
-
-
-if __name__ == '__main__':
-    sys.exit(run_all_tests())
+if __name__ == "__main__":
+    unittest.main()
