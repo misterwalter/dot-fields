@@ -238,10 +238,6 @@ class TestGeneration(unittest.TestCase):
         # neighbour also become orange.
         for x in range(6):
             p = df.get_pixel(x, 0)
-            if p not in [RED, ORANGE]:
-                import sys
-                print(f"DEBUG pixel {x}: p={p}, RED={RED}, ORANGE={ORANGE}", file=sys.stderr)
-                print(f"DEBUG df.grid id={id(df.grid)}", file=sys.stderr)
             self.assertIn(p, [RED, ORANGE], f"pixel {x} has state {p}")
 
 
@@ -315,17 +311,18 @@ class TestSavePng(unittest.TestCase):
         # Read back raw pixel data.
         with open(path, "rb") as f:
             f.read(8)  # PNG signature
-            f.read(4)  # IHDR length
+            ihdr_len = struct.unpack(">I", f.read(4))[0]  # IHDR length
             f.read(4)  # IHDR type ("IHDR")
-            f.read(13)  # IHDR data
+            f.read(ihdr_len)  # IHDR data
             f.read(4)  # IHDR CRC
-            idat_len = struct.unpack(">I", f.read(4))[0]
+            idat_len = struct.unpack(">I", f.read(4))[0]  # IDAT length
+            f.read(4)  # IDAT type ("IDAT")
             compressed = f.read(idat_len)
             raw = zlib_decompress(compressed)
         # The purple pixel is at grid[10][20].
         # Each row: 1 filter byte + width * 3 bytes.
-        row_offset = 1 * (64 * 3 + 1) + 10 * (64 * 3 + 1)  # line 10 start
-        px_offset = row_offset + 20 * 3  # column 20
+        row_offset = 10 * (64 * 3 + 1)  # line 10 start (filter byte)
+        px_offset = row_offset + 1 + 20 * 3  # skip filter byte, then column offset
         r, g, b = raw[px_offset], raw[px_offset + 1], raw[px_offset + 2]
         self.assertEqual((r, g, b), PURPLE)
         path.unlink()
